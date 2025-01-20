@@ -1,0 +1,230 @@
+<!DOCTYPE html>
+<html lang="en"><head><meta http-equiv="Content-Type" content="text/html; charset=UTF-8">
+<title>Chemotaxis</title>
+<style type="text/css">
+body{
+		font-family: "HelveticaNeue-Light", "Helvetica Neue Light", "Helvetica Neue",
+		 Helvetica, Arial, "Lucida Grande", sans-serif;
+	 padding : 15px;
+	 max-width: 600px;
+	 margin: auto;
+}
+td {
+	 padding: 10px;
+	 vertical-align: top;
+}
+</style>
+
+
+<script src="./artistoo.js"></script>
+<script src="./fpsmeter.min.js"></script>
+<script>
+"use strict"
+
+
+/*	----------------------------------
+	CONFIGURATION SETTINGS
+	----------------------------------
+*/
+
+let config = {
+
+	field_size : [200,200],
+	
+	// CPM parameters and configuration
+	conf : {
+		torus : [true,true],						
+		seed : 1,							
+		T : 50,	
+		coarser : 1,					
+		D : 1, // 0.75,	// diffusion coefficient in pix^2 / MCS
+		Nd : 10, // execute diffusion in Nd steps/MCS
+		alpha : 0.3, // 0.3, // secretion rate per MCS
+		epsilon : 0.3, // 0.3, // decay rate per MCS
+		J: [[0,4], [4,1]],
+		LAMBDA_V : [0,5],					
+		V : [0,50]					
+		
+	},
+	simsettings : {
+	
+		NRCELLS : [400],		
+		INNERFIELD : [200,200],			
+		BURNIN : 100,
+		CANVASCOLOR : "eaecef",
+		CELLCOLOR : ["000000"],
+		zoom : 3,										
+		LOGRATE : 10							// Output stats every <LOGRATE> MCS.
+
+	}
+}
+/*	---------------------------------- */
+let sim, meter
+
+// make contact-inhibited chemotaxis and add the saturation parameter
+class ChemotaxisConstraintCI extends CPM.ChemotaxisConstraint {
+	
+	concDiff( tp, ts ) {
+		
+	
+		let ct = this.field.pixt( tp )
+		let cs = this.field.pixt( ts ) 
+		let saturation_coefficient = this.parameters["s"]
+		
+		//return 0
+		
+		return ( ( ct / (1+saturation_coefficient*ct )) - (cs / (1+saturation_coefficient*cs ) ) )
+		
+	}
+	
+	deltaHCoarse( sourcei, targeti, src_type, tgt_type ) {
+		let sp = this.C.grid.i2p( sourcei ), tp = this.C.grid.i2p( targeti )
+		let delta = this.concDiff( tp, sp )
+		let lambdachem = this.cellParameter("LAMBDA_CH", src_type)
+		// special case for interfaces that do not involve the matrix
+		if( src_type > 0 && tgt_type > 0 ){
+			lambdachem = lambdachem * this.parameters["X"]
+		}
+		if( !this.parameters["retract"]){
+			if( src_type == 0 ) lambdachem = 0
+		}
+		
+		return -delta*lambdachem
+	}
+	deltaH( sourcei, targeti, src_type, tgt_type ) {
+		let sp = this.C.grid.i2p( sourcei ), tp = this.C.grid.i2p( targeti )
+		let delta = this.concDiff( tp, sp )
+		let lambdachem = this.cellParameter("LAMBDA_CH", src_type)
+		if( src_type > 0 && tgt_type > 0 ){
+			lambdachem = lambdachem * this.parameters["X"]
+		}
+		if( !this.parameters["retract"]){
+			if( src_type == 0 ) lambdachem = 0
+		}
+		return -delta*lambdachem
+	}
+	
+}
+
+
+
+function initialize(){
+
+	let custommethods = {
+		initializeGrid : initializeGrid,	// initialize regular grid
+		postMCSListener : postMCSListener, // function defined below, this contains the chemokine updates
+		drawCanvas : drawCanvas
+	}
+	sim = new CPM.Simulation( config, custommethods )
+	const coarse = sim.C.conf.coarser 
+	if( coarse > 1 ){
+		sim.g = new CPM.Grid2D([sim.C.extents[0]/coarse,sim.C.extents[1]/coarse], config.torus, "Float32")
+		sim.gi = new CPM.CoarseGrid( sim.g, coarse )
+	} else {
+		sim.g = new CPM.Grid2D([sim.C.extents[0],sim.C.extents[1]], config.torus, "Float32")
+		sim.gi = sim.g
+	}
+	
+
+	sim.C.add( new ChemotaxisConstraintCI( {
+		LAMBDA_CH: [0,500],
+		X : 0,
+		s : 0.1,
+		retract : true,
+		CH_FIELD : sim.gi }
+	) )
+	
+	meter = new FPSMeter({left:"auto", right:"5px"})
+	step()
+}
+
+
+function step(){
+	sim.step()
+	meter.tick()
+	requestAnimationFrame( step )
+}
+
+
+
+function initializeGrid(){
+	
+	// add the initializer if not already there
+	if( !this.helpClasses["gm"] ){ this.addGridManipulator() }
+	
+	
+	// regular initialization
+	const delta = Math.floor( Math.sqrt( this.conf.NRCELLS[0]))
+	const dx = [ Math.floor( this.conf.INNERFIELD[0]  / delta ), Math.floor( this.conf.INNERFIELD[1]  / delta ) ]
+	const offset = [ Math.floor( dx[0] / 2 ), Math.floor( dx[1] /2) ]
+	
+	const buffer = Math.floor( (this.C.extents[0] - this.conf.INNERFIELD[0])/2)
+
+	for( let i = 0; i < delta; i++ ){
+		for( let j = 0; j < delta; j++ ){
+			const xx = offset[0] + i*dx[0] + buffer
+			const yy = offset[1] + j*dx[1] + buffer
+			this.gm.seedCellAt( 1, [xx,yy])
+		}
+	}
+	
+		/*
+		// random initialization
+	for( let i = 0 ; i < this.conf.NRCELLS[0] ; i += 1 ){
+		const xx = Math.floor( this.C.random()*this.conf.INNERFIELD[0] + 0.5*(this.C.extents[0] - this.conf.INNERFIELD[0] ) )
+		const yy = Math.floor( this.C.random()*this.conf.INNERFIELD[1] + 0.5*(this.C.extents[1] - this.conf.INNERFIELD[1] ) )
+	
+		this.gm.seedCellAt( 1, 
+			[xx,yy])
+	}*/
+}
+
+function postMCSListener(){
+
+
+
+	for( let i = 1 ; i <= this.C.conf.Nd ; i ++ ){
+		// cell pixels secrete chemokine at rate alpha
+		for( let pp of this.C.cellPixels() ){
+			const pos = [ Math.round( pp[0][0] / this.C.conf.coarser ), Math.round( pp[0][1] / this.C.conf.coarser )]
+			const oldval = this.g.pixt(pos)
+			const newval = oldval + this.C.conf.alpha / this.C.conf.Nd
+			this.g.setpix( pos, newval )
+		}
+		
+		this.g.diffusion( this.C.conf["D"] / this.C.conf.Nd  / ( this.C.conf.coarser * this.C.conf.coarser)  )
+			
+		
+		// non cell pixels decay chemokine at rate epsilon
+		for( let pi of this.gi.pixelsi() ){
+			if( this.C.pixti(pi) == 0 ){
+				const pp = this.gi.i2p(pi)
+				this.g.setpix( pp, this.g.pixt(pp) * (1- ( this.C.conf.epsilon / this.C.conf.Nd ) ) )
+			}
+		}
+		
+		
+	}
+	
+	// update time logger
+	document.getElementById("time").innerHTML = this.time
+}
+
+
+function drawCanvas(){
+	
+	// Add the canvas if required
+	if( !this.helpClasses["canvas"] ){ this.addCanvas() }
+	this.Cim.drawField( this.gi )
+	//this.Cim.drawCells( 1, "000000" )
+	this.Cim.drawCellBorders( -1, "000000")	
+}
+
+</script>
+</head>
+<body onload="initialize()">
+ 
+ <h1>Angiogenesis</h1>
+ <p>Time elapsed : <span id="time">0</span> MCS</p>
+</body>
+</html>
