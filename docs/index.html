@@ -68,6 +68,13 @@ let rangeMap = {
 		rangeToModel : function(v){ return v/1000 },
 		modelToRange : function(v){ return v*1000 }
 	},
+	"Nd" : {
+		model : "shared",
+		key : 'Nd', 
+		position : [],
+		rangeToModel : function(v){ return v },
+		modelToRange : function(v){ return v }
+	},
 	"s" : {
 		model : "shared",
 		constraint : "ChemotaxisConstraintCI", 
@@ -362,6 +369,17 @@ function drawCanvas(){
 	<td style="width:70%"> 
 		<div class="range-wrap">
 		  <input type="range" class="range" min="0" max="1000" id="epsilon" oninput="sliderInput()">
+		  <output class="bubble"></output>
+		</div>
+	</td>
+	
+</tr>
+<tr>
+	<td style="width:20%">PDE<sub>steps/MCS</sub></td>
+
+	<td style="width:70%"> 
+		<div class="range-wrap">
+		  <input type="range" class="range" min="1" max="50" id="Nd" oninput="sliderInput()">
 		  <output class="bubble"></output>
 		</div>
 	</td>
