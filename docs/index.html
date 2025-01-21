@@ -1,31 +1,100 @@
 <!DOCTYPE html>
 <html lang="en"><head><meta http-equiv="Content-Type" content="text/html; charset=UTF-8">
 <title>Chemotaxis</title>
-<style type="text/css">
-body{
-		font-family: "HelveticaNeue-Light", "Helvetica Neue Light", "Helvetica Neue",
-		 Helvetica, Arial, "Lucida Grande", sans-serif;
-	 padding : 15px;
-	 max-width: 600px;
-	 margin: auto;
-}
-td {
-	 padding: 10px;
-	 vertical-align: top;
-}
-</style>
 
+<link href="https://cdn.jsdelivr.net/npm/bootstrap@5.0.0/dist/css/bootstrap.min.css" rel="stylesheet" integrity="sha384-wEmeIV1mKuiNpC+IOBjI7aAzPcEZeedi5yW5f2yOq55WWLwNGmvvx4Um1vskeMj0" crossorigin="anonymous">
+<script src="https://code.jquery.com/jquery-3.4.1.slim.min.js" integrity="sha384-J6qa4849blE2+poT4WnyKhv5vZF5SrPo0iEjwBvKU7imGFAV0wwj1yYfoRSJoZ+n" crossorigin="anonymous"></script>
+<link rel="stylesheet" href="https://pro.fontawesome.com/releases/v5.13.0/css/all.css">
+<link rel="stylesheet" href="./style.css">
 
 <script src="./artistoo.js"></script>
+<script src="./gui.js"></script>
 <script src="./fpsmeter.min.js"></script>
 <script>
 "use strict"
 
 
-/*	----------------------------------
-	CONFIGURATION SETTINGS
-	----------------------------------
-*/
+
+// linking configuration parameters to the slider's ID in the html;
+// used in ./gui.js to set sliders and update model parameters if sliders change
+
+let rangeMap = {
+	"T" : {
+		model : "shared",
+		key : 'T',
+		position : [],
+		rangeToModel : function(v){ return v },
+		modelToRange : function(v){ return v }
+	},
+	"larea" : {
+		model : "shared",
+		key : 'LAMBDA_V',
+		position : [1],
+		rangeToModel : function(v){ return v },
+		modelToRange : function(v){ return v }
+	},
+	"Jcm" : {
+		model : "shared",
+		key : 'J', 
+		position : [0,1],
+		rangeToModel : function(v){ return v },
+		modelToRange : function(v){ return v }
+	},
+	"Jcc" : {
+		model : "shared",
+		key : 'J', 
+		position : [1,1],
+		rangeToModel : function(v){ return v },
+		modelToRange : function(v){ return v }
+	},
+	"D" : {
+		model : "shared",
+		key : 'D', 
+		position : [],
+		rangeToModel : function(v){ return v/10 },
+		modelToRange : function(v){ return v*10 }
+	},
+	"alpha" : {
+		model : "shared",
+		key : 'alpha', 
+		position : [],
+		rangeToModel : function(v){ return v/1000 },
+		modelToRange : function(v){ return v*1000 }
+	},
+	"epsilon" : {
+		model : "shared",
+		key : 'epsilon', 
+		position : [],
+		rangeToModel : function(v){ return v/1000 },
+		modelToRange : function(v){ return v*1000 }
+	},
+	"s" : {
+		model : "shared",
+		constraint : "ChemotaxisConstraintCI", 
+		key : 's', 
+		position : [],
+		rangeToModel : function(v){ return v/1000 },
+		modelToRange : function(v){ return v*1000 }
+	},
+	"mu" : {
+		model : "shared",
+		constraint : "ChemotaxisConstraintCI", 
+		key : 'LAMBDA_CH', 
+		position : [1],
+		rangeToModel : function(v){ return v },
+		modelToRange : function(v){ return v }
+	},
+	"X" : {
+		model : "shared",
+		constraint : "ChemotaxisConstraintCI", 
+		key : 'X', 
+		position : [],
+		rangeToModel : function(v){ return v/1000 },
+		modelToRange : function(v){ return v*1000 }
+	}
+	
+}
+
 
 let config = {
 
@@ -35,8 +104,7 @@ let config = {
 	conf : {
 		torus : [true,true],						
 		seed : 1,							
-		T : 50,	
-		coarser : 1,					
+		T : 50,
 		D : 1, // 0.75,	// diffusion coefficient in pix^2 / MCS
 		Nd : 10, // execute diffusion in Nd steps/MCS
 		alpha : 0.3, // 0.3, // secretion rate per MCS
@@ -50,15 +118,14 @@ let config = {
 	
 		NRCELLS : [400],		
 		INNERFIELD : [200,200],			
-		BURNIN : 100,
-		CANVASCOLOR : "eaecef",
+		BURNIN : 1,
 		CELLCOLOR : ["000000"],
-		zoom : 3,										
-		LOGRATE : 10							// Output stats every <LOGRATE> MCS.
+		zoom : 2
 
 	}
 }
-/*	---------------------------------- */
+
+
 let sim, meter
 
 // make contact-inhibited chemotaxis and add the saturation parameter
@@ -107,31 +174,24 @@ class ChemotaxisConstraintCI extends CPM.ChemotaxisConstraint {
 }
 
 
-
 function initialize(){
 
-	let custommethods = {
-		initializeGrid : initializeGrid,	// initialize regular grid
-		postMCSListener : postMCSListener, // function defined below, this contains the chemokine updates
+	sim = new CPM.Simulation( config, {
+		initializeGrid : initializeGrid,	// these functions are defined below
+		postMCSListener : postMCSListener,
+		updateChemokine : updateChemokine,
 		drawCanvas : drawCanvas
-	}
-	sim = new CPM.Simulation( config, custommethods )
-	const coarse = sim.C.conf.coarser 
-	if( coarse > 1 ){
-		sim.g = new CPM.Grid2D([sim.C.extents[0]/coarse,sim.C.extents[1]/coarse], config.torus, "Float32")
-		sim.gi = new CPM.CoarseGrid( sim.g, coarse )
-	} else {
-		sim.g = new CPM.Grid2D([sim.C.extents[0],sim.C.extents[1]], config.torus, "Float32")
-		sim.gi = sim.g
-	}
+	} )
 	
-
+	initCanvas()
+		
+	sim.chemokine = new CPM.Grid2D([sim.C.extents[0],sim.C.extents[1]], config.torus, "Float32")
 	sim.C.add( new ChemotaxisConstraintCI( {
 		LAMBDA_CH: [0,500],
 		X : 0,
 		s : 0.1,
 		retract : true,
-		CH_FIELD : sim.gi }
+		CH_FIELD : sim.chemokine }
 	) )
 	
 	meter = new FPSMeter({left:"auto", right:"5px"})
@@ -140,8 +200,15 @@ function initialize(){
 
 
 function step(){
-	sim.step()
-	meter.tick()
+	if( sim.time == 500 ){
+		sim.toggleRunning()
+	}
+	if( sim.running ){
+		sim.step()
+		meter.tick()
+	} else {
+		sim.drawCanvas()
+	}
 	requestAnimationFrame( step )
 }
 
@@ -149,9 +216,7 @@ function step(){
 
 function initializeGrid(){
 	
-	// add the initializer if not already there
-	if( !this.helpClasses["gm"] ){ this.addGridManipulator() }
-	
+	this.addGridManipulator()	
 	
 	// regular initialization
 	const delta = Math.floor( Math.sqrt( this.conf.NRCELLS[0]))
@@ -167,64 +232,222 @@ function initializeGrid(){
 			this.gm.seedCellAt( 1, [xx,yy])
 		}
 	}
-	
-		/*
-		// random initialization
-	for( let i = 0 ; i < this.conf.NRCELLS[0] ; i += 1 ){
-		const xx = Math.floor( this.C.random()*this.conf.INNERFIELD[0] + 0.5*(this.C.extents[0] - this.conf.INNERFIELD[0] ) )
-		const yy = Math.floor( this.C.random()*this.conf.INNERFIELD[1] + 0.5*(this.C.extents[1] - this.conf.INNERFIELD[1] ) )
-	
-		this.gm.seedCellAt( 1, 
-			[xx,yy])
-	}*/
+
 }
 
+// called by postMCSListener after every MCS
+function updateChemokine( D, alpha, epsilon ){
+
+	let update = this.chemokine._pixels.map( (x,i) => {
+		if( this.C.pixti(i) == 0 ){ 	// background pixels: decay
+			return x * ( 1 - epsilon )
+		} else {						// cell pixels: secretion
+			return x + alpha
+		}
+	})
+	
+	this.chemokine._pixels = update	
+	this.chemokine.diffusion( D ) 
+		
+}
+
+// called after every MCS
 function postMCSListener(){
 
-
-
-	for( let i = 1 ; i <= this.C.conf.Nd ; i ++ ){
-		// cell pixels secrete chemokine at rate alpha
-		for( let pp of this.C.cellPixels() ){
-			const pos = [ Math.round( pp[0][0] / this.C.conf.coarser ), Math.round( pp[0][1] / this.C.conf.coarser )]
-			const oldval = this.g.pixt(pos)
-			const newval = oldval + this.C.conf.alpha / this.C.conf.Nd
-			this.g.setpix( pos, newval )
-		}
-		
-		this.g.diffusion( this.C.conf["D"] / this.C.conf.Nd  / ( this.C.conf.coarser * this.C.conf.coarser)  )
-			
-		
-		// non cell pixels decay chemokine at rate epsilon
-		for( let pi of this.gi.pixelsi() ){
-			if( this.C.pixti(pi) == 0 ){
-				const pp = this.gi.i2p(pi)
-				this.g.setpix( pp, this.g.pixt(pp) * (1- ( this.C.conf.epsilon / this.C.conf.Nd ) ) )
-			}
-		}
-		
-		
+	// chemokine dynamics at Nd steps per MCS
+	const Nd = this.C.conf.Nd
+	const effectiveDiffusionRate = this.C.conf["D"] / Nd
+	const effectiveAlpha = this.C.conf.alpha / Nd
+	const effectiveEpsilon = this.C.conf.epsilon / Nd
+	
+	
+	for( let i = 0 ; i <= Nd ; i ++ ){
+		this.updateChemokine( effectiveDiffusionRate, effectiveAlpha, effectiveEpsilon )	
 	}
 	
 	// update time logger
 	document.getElementById("time").innerHTML = this.time
 }
 
-
 function drawCanvas(){
 	
 	// Add the canvas if required
 	if( !this.helpClasses["canvas"] ){ this.addCanvas() }
-	this.Cim.drawField( this.gi )
-	//this.Cim.drawCells( 1, "000000" )
-	this.Cim.drawCellBorders( -1, "000000")	
+	
+	this.Cim.clear("ffffff")
+	
+	if( document.getElementById( "drawField" ).checked ) this.Cim.drawField( this.chemokine )
+	if( document.getElementById( "drawCells" ).checked ) this.Cim.drawCells( 1, "aaaaaa")	
+	if( document.getElementById( "drawCellBorders" ).checked ) this.Cim.drawCellBorders( -1, "000000")	
+	
 }
 
 </script>
 </head>
-<body onload="initialize()">
+<body onload="initialize(); setPlayPause(); setSliders(); sliderInput(); step()">
+
+<div style="text-align:center;max-width:1000px;margin:auto">
+
  
  <h1>Angiogenesis</h1>
- <p>Time elapsed : <span id="time">0</span> MCS</p>
+ 
+
+ <p><b>Model parameters:</b></p>
+<table width="400px" align="center">
+<tr>
+	<td style="width:20%">T</td>
+	<td style="width:70%"> 
+		<div class="range-wrap">
+		  <input type="range" class="range" min="0" max="100" id="T" oninput="sliderInput()" >
+		  <output class="bubble"></output>
+		</div>
+	</td>
+</tr>
+<tr>
+	<td style="width:20%">&lambda;<sub>area</sub></td>
+
+	<td style="width:70%"> 
+		<div class="range-wrap">
+		  <input type="range" class="range" min="0" max="100" id="larea" oninput="sliderInput()">
+		  <output class="bubble"></output>
+		</div>
+	</td>
+</tr>
+<tr>
+	<td style="width:20%">J<sub>cm</sub></td>
+
+	<td style="width:70%"> 
+		<div class="range-wrap">
+		  <input type="range" class="range" min="0" max="20" id="Jcm" oninput="sliderInput()">
+		  <output class="bubble"></output>
+		</div>
+	</td>
+</tr>
+<tr>
+	<td style="width:20%">J<sub>cc</sub></td>
+
+	<td style="width:70%"> 
+		<div class="range-wrap">
+		  <input type="range" class="range" min="0" max="20" id="Jcc" oninput="sliderInput()">
+		  <output class="bubble"></output>
+		</div>
+	</td>
+	
+</tr>
+<tr>
+	<td style="width:20%">D</td>
+
+	<td style="width:70%"> 
+		<div class="range-wrap">
+		  <input type="range" class="range" min="0" max="20" id="D" oninput="sliderInput()">
+		  <output class="bubble"></output>
+		</div>
+	</td>
+	
+</tr>
+<tr>
+	<td style="width:20%">&alpha;</td>
+
+	<td style="width:70%"> 
+		<div class="range-wrap">
+		  <input type="range" class="range" min="0" max="1000" id="alpha" oninput="sliderInput()">
+		  <output class="bubble"></output>
+		</div>
+	</td>
+	
+</tr>
+<tr>
+	<td style="width:20%">&epsilon;</td>
+
+	<td style="width:70%"> 
+		<div class="range-wrap">
+		  <input type="range" class="range" min="0" max="1000" id="epsilon" oninput="sliderInput()">
+		  <output class="bubble"></output>
+		</div>
+	</td>
+	
+</tr>
+<tr>
+	<td style="width:20%">s</td>
+
+	<td style="width:70%"> 
+		<div class="range-wrap">
+		  <input type="range" class="range" min="0" max="1000" id="s" oninput="sliderInput()">
+		  <output class="bubble"></output>
+		</div>
+	</td>
+	
+</tr>
+<tr>
+	<td style="width:20%">&mu;</td>
+
+	<td style="width:70%"> 
+		<div class="range-wrap">
+		  <input type="range" class="range" min="0" max="1000" id="mu" oninput="sliderInput()">
+		  <output class="bubble"></output>
+		</div>
+	</td>
+	
+</tr>
+<tr>
+	<td style="width:20%">&chi;</td>
+
+	<td style="width:70%"> 
+		<div class="range-wrap">
+		  <input type="range" class="range" min="0" max="1000" id="X" oninput="sliderInput()">
+		  <output class="bubble"></output>
+		</div>
+	</td>
+	
+</tr>
+</table>
+<br>
+
+	<div class="row sim-controls">
+		<div class="col-sm-12 col-l-6">
+			<button id="playPause" class="btn"><span id="playIcon" class="fa fa-play"></span></button>
+			<button id="reset" class="btn"><i class="fa fa-redo"></i></button>
+		</div>			
+	</div>
+	<p>
+	Time: <span id ="time">0</span> MCS<br></p>
+
+<div align="center">
+	<div class="row sim-controls">
+		<div>
+			<div id="canvasModel" class="simulationCanvas"></div><br>
+		</div>			
+	</div>
+	 <div>
+ 		<p>Draw: &#9; <input type = "checkbox" id = "drawCells" > cells  &#9; <input type = "checkbox" id = "drawCellBorders" checked > cell borders  &#9;  <input type = "checkbox" id = "drawField" checked > chemokine </p>
+ 	</div>
+ 
+	<span style="font-size:90%">Powered by <a href="https://artistoo.net" target="_blank">artistoo</a>.</span><br>
+	<br>
+</div>
+</div>
+ 
+ </div>
 </body>
+
+<script>
+
+	
+	$(document).ready(function () {
+			
+		$('#playPause').on('click', function () {
+			for( let i of model_names ){
+				sims[i].toggleRunning()
+			}
+			//sim0.toggleRunning()
+			//sim5.toggleRunning()
+			setPlayPause()		
+		});
+		$('#reset').on('click', function () {
+			resetSim()
+			setPlayPause()
+		});
+	});
+
+</script>
 </html>
