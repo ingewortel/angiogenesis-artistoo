@@ -436,11 +436,7 @@ function drawCanvas(){
 	$(document).ready(function () {
 			
 		$('#playPause').on('click', function () {
-			for( let i of model_names ){
-				sims[i].toggleRunning()
-			}
-			//sim0.toggleRunning()
-			//sim5.toggleRunning()
+			sim.toggleRunning()
 			setPlayPause()		
 		});
 		$('#reset').on('click', function () {
