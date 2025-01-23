@@ -1,4 +1,108 @@
 
+// linking configuration parameters to the slider's ID in the html;
+// used in ./gui.js to set sliders and update model parameters if sliders change
+
+let rangeMap = {
+	"T" : {
+		model : "shared",
+		key : 'T',
+		position : [],
+		rangeToModel : function(v){ return v },
+		modelToRange : function(v){ return v }
+	},
+	"larea" : {
+		model : "shared",
+		key : 'LAMBDA_V',
+		position : [1],
+		rangeToModel : function(v){ return v },
+		modelToRange : function(v){ return v }
+	},
+	"Jcm" : {
+		model : "shared",
+		constraint : "Adhesion2", 
+		key : 'J2', 
+		position : [0,1],
+		rangeToModel : function(v){ return v },
+		modelToRange : function(v){ return v }
+	},
+	"Jcc" : {
+		model : "shared",
+		key : 'J2', 
+		constraint : "Adhesion2", 
+		position : [1,1],
+		rangeToModel : function(v){ return v },
+		modelToRange : function(v){ return v }
+	},
+	"D" : {
+		model : "shared",
+		key : 'D', 
+		position : [],
+		rangeToModel : function(v){ return v/10 },
+		modelToRange : function(v){ return v*10 }
+	},
+	"alpha" : {
+		model : "shared",
+		key : 'alpha', 
+		position : [],
+		rangeToModel : function(v){ return v/1000 },
+		modelToRange : function(v){ return v*1000 }
+	},
+	"epsilon" : {
+		model : "shared",
+		key : 'epsilon', 
+		position : [],
+		rangeToModel : function(v){ return v/1000 },
+		modelToRange : function(v){ return v*1000 }
+	},
+	"Nd" : {
+		model : "shared",
+		key : 'Nd', 
+		position : [],
+		rangeToModel : function(v){ return v },
+		modelToRange : function(v){ return v }
+	},
+	"s" : {
+		model : "shared",
+		constraint : "ChemotaxisConstraintCI", 
+		key : 's', 
+		position : [],
+		rangeToModel : function(v){ return v/1000 },
+		modelToRange : function(v){ return v*1000 }
+	},
+	"mu" : {
+		model : "shared",
+		constraint : "ChemotaxisConstraintCI", 
+		key : 'LAMBDA_CH', 
+		position : [1],
+		rangeToModel : function(v){ return v },
+		modelToRange : function(v){ return v }
+	},
+	"X" : {
+		model : "shared",
+		constraint : "ChemotaxisConstraintCI", 
+		key : 'X', 
+		position : [],
+		rangeToModel : function(v){ return v/1000 },
+		modelToRange : function(v){ return v*1000 }
+	},
+	"Nadh" : {
+		model : "shared",
+		constraint : "Adhesion2", 
+		key : 'order', 
+		position : [],
+		rangeToModel : function(v){ return parseInt(v) },
+		modelToRange : function(v){ return v }
+	},
+	"Nsampler" : {
+		model : "shared",
+		key : 'NbhOrder', 
+		position : ['sampling'],
+		rangeToModel : function(v){ return parseInt(v) },
+		modelToRange : function(v){ return v }
+	}
+	
+}
+
 
 function setSliders(){
 
