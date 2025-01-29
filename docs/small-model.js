@@ -1,6 +1,6 @@
 
-let fs = [200,200] 	// 140,140
-let Ncell = 400		// 200
+let fs = [100,100] 	// 140,140
+let Ncell = 100		// 200
 
 let config = {
 
@@ -26,7 +26,7 @@ let config = {
 		INNERFIELD : fs,			
 		BURNIN : 1,
 		CELLCOLOR : ["000000"],
-		zoom : 2
+		zoom : 3
 
 	}
 }
